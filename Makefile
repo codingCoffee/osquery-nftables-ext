@@ -6,11 +6,13 @@
 BINARY      := nftables.ext
 PKG         := github.com/zerodha/osquery-nftables-ext
 GO          ?= go
+VERSION     ?= 0.1.0
 
 # CGO_ENABLED=0 => no libc linkage => a single static binary.
 # -s -w strips the symbol table and DWARF info to keep it small.
+# -X main.version stamps the version reported to osquery at registration.
 GOFLAGS     := -trimpath
-LDFLAGS     := -s -w
+LDFLAGS     := -s -w -X main.version=$(VERSION)
 
 .PHONY: all build deps test vet clean
 

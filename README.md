@@ -208,14 +208,23 @@ cap_add: [ NET_ADMIN ]    # capability nft needs to read it (narrower than privi
 Without `network_mode: host` the extension only sees the container's own (empty)
 ruleset.
 
-Run an ad-hoc query against the loaded extension by execing into the container:
+Run an ad-hoc query against the loaded extension by execing into the container.
+Use **interactive** `osqueryi` (no trailing query argument):
 
 ```sh
 docker exec -it osquery-nftables \
-  osqueryi --extensions_autoload=/etc/osquery/extensions.load \
-           --extensions_timeout=10 \
-           "SELECT kind, family, table_name, chain, handle FROM nftables;"
+  osqueryi --extensions_autoload=/etc/osquery/extensions.load --extensions_timeout=10
 ```
+```sql
+osquery> SELECT kind, family, table_name, chain, handle FROM nftables;
+```
+
+> **Don't pass the SQL as a one-shot argument** (`osqueryi "SELECT ... FROM
+> nftables;"`). One-shot mode can execute the query *before* the autoloaded
+> extension finishes registering, giving a spurious `no such table: nftables`.
+> Interactive mode (above) waits for registration, and the scheduled
+> `osqueryd` path is unaffected. The container name is
+> `osquery-nftables-ext-osquery-nftables-1` unless you set `container_name`.
 
 Override the osquery version at build time:
 

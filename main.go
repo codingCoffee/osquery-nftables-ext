@@ -29,6 +29,10 @@ import (
 	"github.com/osquery/osquery-go/plugin/table"
 )
 
+// version is reported to osquery during extension registration. Override at
+// build time with -ldflags "-X main.version=<v>".
+var version = "0.1.0"
+
 func main() {
 	// osqueryd passes these flags to autoloaded extensions. We must accept all
 	// of them or flag parsing fails and the extension will not start.
@@ -42,7 +46,7 @@ func main() {
 		log.Fatalln("nftables.ext: --socket is required (osqueryd supplies it automatically)")
 	}
 
-	opts := []osquery.ServerOption{}
+	opts := []osquery.ServerOption{osquery.ExtensionVersion(version)}
 	if *timeout > 0 {
 		opts = append(opts, osquery.ServerTimeout(time.Duration(*timeout)*time.Second))
 	}
