@@ -1,0 +1,32 @@
+services:
+  osquery-nftables:
+    build:
+      context: .
+      args:
+        OSQUERY_VERSION: "5.12.1"
+    image: osquery-nftables-ext:latest
+
+    # To query the HOST's live nftables ruleset, the container must run nft in
+    # the host's network namespace...
+    network_mode: host
+
+    # ...and hold the capability nft needs to read the ruleset over netlink.
+    # NET_ADMIN is sufficient and far narrower than privileged: true.
+    cap_add:
+      - NET_ADMIN
+
+    # nftables JSON is read-only and never written; mount the rootfs read-only.
+    # /var/osquery stays writable for the socket, pidfile and RocksDB.
+    read_only: true
+    tmpfs:
+      - /var/osquery
+      - /var/log/osquery
+      # osqueryi (the ad-hoc shell) creates its working home under /tmp; with a
+      # read_only rootfs it needs this to be writable.
+      - /tmp
+
+    restart: unless-stopped
+
+    # Without network_mode: host the daemon would only see the container's own
+    # (empty) ruleset. Drop network_mode and cap_add to demo against an empty
+    # ruleset instead.

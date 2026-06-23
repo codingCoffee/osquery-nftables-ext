@@ -1,0 +1,7 @@
+--extensions_autoload=/etc/osquery/extensions.load
+--extensions_timeout=10
+--extensions_socket=/var/osquery/osquery.em
+--disable_extensions=false
+--logger_path=/var/log/osquery
+--pidfile=/var/osquery/osquery.pidfile
+--database_path=/var/osquery/osquery.db

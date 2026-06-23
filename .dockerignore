@@ -1,0 +1,6 @@
+.git
+.gitignore
+nftables.ext
+*.swp
+.DS_Store
+README.md

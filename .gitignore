@@ -1,0 +1,6 @@
+# build artifact
+/nftables.ext
+
+# editor / OS noise
+*.swp
+.DS_Store
