@@ -4,7 +4,7 @@
 # nftables.ext (osquery convention: extensions end in .ext).
 
 BINARY      := nftables.ext
-PKG         := github.com/zerodha/osquery-nftables-ext
+PKG         := github.com/codingcoffee/osquery-nftables-ext
 GO          ?= go
 VERSION     ?= 0.1.0
 

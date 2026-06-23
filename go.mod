@@ -1,4 +1,4 @@
-module github.com/zerodha/osquery-nftables-ext
+module github.com/codingcoffee/osquery-nftables-ext
 
 go 1.26
 

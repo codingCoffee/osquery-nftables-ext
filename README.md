@@ -184,6 +184,100 @@ correct. They **never** shell out to a real `nft`.
 make test
 ```
 
+## Install on NixOS (declarative)
+
+The repo ships a [`flake.nix`](flake.nix) that packages the extension with
+`buildGoModule` (unit tests run in the build's `checkPhase`, so a broken build
+never installs) and provides a NixOS module that wires it into the upstream
+`services.osquery` daemon. This is the idiomatic path: the binary lives in
+`/nix/store` — already root-owned and non-writable, exactly what osquery's
+extension safety check wants — so there is nothing to `chown`/`chmod`.
+
+### One-time: pin `vendorHash`
+
+`buildGoModule` needs the hash of the module dependencies. `flake.nix` ships
+`vendorHash = pkgs.lib.fakeHash` as a placeholder; build once, then paste the
+real hash Nix reports:
+
+```sh
+nix build .#osquery-nftables-ext
+# error: hash mismatch ... got: sha256-XXXX...
+# -> replace fakeHash in flake.nix with that sha256-XXXX... and rebuild
+```
+
+### Try it without installing
+
+```sh
+nix build .#osquery-nftables-ext
+./result/bin/nftables.ext --help     # the static extension binary
+```
+
+### Add to your system configuration
+
+In a flake-based NixOS config, add this flake as an input and import its module:
+
+```nix
+{
+  inputs.osquery-nftables.url = "github:codingoffee/osquery-nftables-ext";
+
+  outputs = { nixpkgs, osquery-nftables, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        osquery-nftables.nixosModules.default
+        {
+          # Builds the extension, enables services.osquery, autoloads the
+          # extension, schedules `SELECT * FROM nftables;`, and grants osqueryd
+          # CAP_NET_ADMIN so it can read the full ruleset.
+          services.osqueryNftables.enable = true;
+          # services.osqueryNftables.interval = 300;  # optional, seconds
+        }
+      ];
+    };
+  };
+}
+```
+
+Rebuild and verify:
+
+```sh
+sudo nixos-rebuild switch
+journalctl -u osqueryd -f | grep -i 'Registering extension'
+```
+
+### Wiring it yourself (without the bundled module)
+
+If you'd rather drive `services.osquery` directly:
+
+```nix
+{ config, pkgs, ... }:
+let
+  ext = (builtins.getFlake "github:codingcoffee/osquery-nftables-ext")
+        .packages.${pkgs.stdenv.hostPlatform.system}.default;
+in {
+  services.osquery = {
+    enable = true;
+    flags = {
+      extensions_autoload =
+        toString (pkgs.writeText "extensions.load" "${ext}/bin/nftables.ext");
+      extensions_timeout = "10";
+    };
+    settings.schedule.nftables_ruleset = {
+      query = "SELECT * FROM nftables;";
+      interval = 300;
+    };
+  };
+  # Reading the full ruleset over netlink needs this capability.
+  systemd.services.osqueryd.serviceConfig.AmbientCapabilities = [ "CAP_NET_ADMIN" ];
+}
+```
+
+> **If osqueryd logs that the extension path is "not safe":** that is osquery's
+> permission check, not NixOS. Store paths are normally fine (root-owned,
+> mode `0555`). As a last resort add `allow_unsafe = "true";` to
+> `services.osquery.flags`, but understand it relaxes osquery's extension
+> trust model — prefer fixing the path's ownership/mode instead.
+
 ## Docker
 
 A multi-stage [`Dockerfile`](Dockerfile) builds the static binary and bakes it
