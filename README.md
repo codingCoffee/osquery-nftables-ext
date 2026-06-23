@@ -193,17 +193,20 @@ never installs) and provides a NixOS module that wires it into the upstream
 `/nix/store` — already root-owned and non-writable, exactly what osquery's
 extension safety check wants — so there is nothing to `chown`/`chmod`.
 
-### One-time: pin `vendorHash`
+### Updating `vendorHash`
 
-`buildGoModule` needs the hash of the module dependencies. `flake.nix` ships
-`vendorHash = pkgs.lib.fakeHash` as a placeholder; build once, then paste the
-real hash Nix reports:
+`buildGoModule` needs the hash of the vendored Go dependencies; `flake.nix`
+pins it, so `nix build` works out of the box. The hash changes whenever
+`go.mod`/`go.sum` change — when it does, regenerate it:
 
 ```sh
+# set `vendorHash = pkgs.lib.fakeHash;` in flake.nix, then:
 nix build .#osquery-nftables-ext
 # error: hash mismatch ... got: sha256-XXXX...
-# -> replace fakeHash in flake.nix with that sha256-XXXX... and rebuild
+# -> paste that sha256-XXXX... back as vendorHash and rebuild
 ```
+
+A `nix build .#default` step in CI catches a stale hash before it lands.
 
 ### Try it without installing
 

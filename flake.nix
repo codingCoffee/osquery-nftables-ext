@@ -22,10 +22,10 @@
           inherit version;
           src = ./.;
 
-          # Replace with the hash Nix prints on the first build. Until then use
-          #   vendorHash = pkgs.lib.fakeHash;
-          # build once, and copy the "got:" hash from the error into here.
-          vendorHash = pkgs.lib.fakeHash;
+          # Hash of the vendored Go module dependencies. Regenerate whenever
+          # go.mod/go.sum change: set this to pkgs.lib.fakeHash, run
+          # `nix build .#osquery-nftables-ext`, and paste the reported "got:" hash.
+          vendorHash = "sha256-8LbImEhxNXpsFkxVczKGgLHw/m5hsdCZAQSzdBSLEzI=";
 
           # Fully static, no cgo — matches `make build`.
           env.CGO_ENABLED = "0";
