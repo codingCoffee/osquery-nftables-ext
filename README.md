@@ -248,6 +248,52 @@ sudo nixos-rebuild switch
 journalctl -u osqueryd -f | grep -i 'Registering extension'
 ```
 
+The module is self-contained: `services.osqueryNftables.enable = true;` builds the
+extension, autoloads it, schedules the query, grants `CAP_NET_ADMIN`, **and**
+applies the two NixOS-specific fixes below — no extra config is required.
+
+### NixOS gotchas the module handles for you
+
+Two defaults that work on a traditional FHS distro fail on NixOS. The module
+fixes both; they are documented here so the symptoms are self-diagnosable (and
+so you know what to override if you wire `services.osquery` yourself).
+
+1. **Extensions socket directory must already exist.** `osqueryd` defaults
+   `--extensions_socket` to `/var/osquery/osquery.em`, but on NixOS that
+   directory does not exist — the unit only manages `/var/lib/osquery`
+   (`StateDirectory`) and `/run/osquery` (`RuntimeDirectory`). With the default
+   you'll see:
+
+   ```
+   Extension socket directory missing: /var/osquery/osquery.em
+   ```
+
+   and the extension loops on `waiting for unix socket to be available …
+   context deadline exceeded`, so the table never registers and queries fail
+   with **`no such table: nftables`**. The module sets
+   `extensions_socket = "/run/osquery/osquery.em"` (via `lib.mkDefault`, so an
+   explicit value of yours still wins) — a directory the unit already creates.
+
+2. **`nft` must be on the daemon's PATH (or pinned via `NFT_BIN`).** The
+   extension shells out to `nft`, but the `osqueryd` systemd unit has a minimal
+   Nix PATH without nftables, so you'll see:
+
+   ```
+   nft binary not found on PATH (set NFT_BIN to override): exec: "nft": executable file not found in $PATH
+   vtable constructor failed: nftables
+   ```
+
+   The module both sets `NFT_BIN=${pkgs.nftables}/bin/nft` in the unit's
+   environment and adds `pkgs.nftables` to the unit's `path`, so the lookup
+   always resolves.
+
+> **Diagnosing on a host:** `vtable constructor failed: nftables` means the
+> table's constructor threw — almost always the missing `nft` (fix #2).
+> `no such table: nftables` means the extension never registered at all —
+> almost always the missing socket directory (fix #1). Check
+> `journalctl -u osqueryd` for the underlying `Extension socket directory
+> missing` / `nft … not found` lines.
+
 ### Wiring it yourself (without the bundled module)
 
 If you'd rather drive `services.osquery` directly:
@@ -264,14 +310,21 @@ in {
       extensions_autoload =
         toString (pkgs.writeText "extensions.load" "${ext}/bin/nftables.ext");
       extensions_timeout = "10";
+      # /var/osquery doesn't exist on NixOS; use a dir the unit manages.
+      extensions_socket = "/run/osquery/osquery.em";
     };
     settings.schedule.nftables_ruleset = {
       query = "SELECT * FROM nftables;";
       interval = 300;
     };
   };
-  # Reading the full ruleset over netlink needs this capability.
-  systemd.services.osqueryd.serviceConfig.AmbientCapabilities = [ "CAP_NET_ADMIN" ];
+  systemd.services.osqueryd = {
+    # nft isn't on the daemon's minimal PATH; pin it so the extension finds it.
+    serviceConfig.Environment = [ "NFT_BIN=${pkgs.nftables}/bin/nft" ];
+    path = [ pkgs.nftables ];
+    # Reading the full ruleset over netlink needs this capability.
+    serviceConfig.AmbientCapabilities = [ "CAP_NET_ADMIN" ];
+  };
 }
 ```
 
