@@ -130,6 +130,143 @@ Equivalently, as lines in `/etc/osquery/osquery.flags`:
 }
 ```
 
+## Install from a release (prebuilt binary)
+
+Each [GitHub release](https://github.com/codingCoffee/osquery-nftables-ext/releases)
+ships a static `linux/amd64` and `linux/arm64` tarball plus a `checksums.txt`.
+No Docker, Go, or build step is needed on the target host — the binary has no
+runtime dependencies (it only shells out to the system `nft`).
+
+Download the tarball for your architecture, verify it, and extract the binary:
+
+```sh
+VERSION=0.3.0
+case "$(uname -m)" in
+  x86_64)  ARCH=amd64 ;;
+  aarch64) ARCH=arm64 ;;
+  *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+esac
+
+BASE="https://github.com/codingCoffee/osquery-nftables-ext/releases/download/v${VERSION}"
+curl -fSLO "${BASE}/osquery-nftables-ext_${VERSION}_linux_${ARCH}.tar.gz"
+curl -fSLO "${BASE}/checksums.txt"
+
+# verify integrity (only checks the file you downloaded)
+sha256sum --check --ignore-missing checksums.txt
+
+tar -xzf "osquery-nftables-ext_${VERSION}_linux_${ARCH}.tar.gz"
+# -> nftables.ext  LICENSE  README.md
+```
+
+osquery refuses to load an extension that is group- or world-writable, so the
+binary must be installed **root-owned, mode `0755`**:
+
+```sh
+sudo install -o root -g root -m 0755 nftables.ext /usr/local/bin/nftables.ext
+
+# autoload manifest listing the binary path
+sudo install -d -o root -g root -m 0755 /etc/osquery
+sudo install -o root -g root -m 0644 /dev/stdin /etc/osquery/extensions.load <<'EOF'
+/usr/local/bin/nftables.ext
+EOF
+```
+
+### Ubuntu
+
+1. Install `osqueryd` from osquery's official apt repository (the binary itself
+   is not in Ubuntu's repos), and ensure `nft` is present:
+
+   ```sh
+   # nftables CLI (the extension shells out to it)
+   sudo apt-get update && sudo apt-get install -y nftables
+
+   # osquery apt repo, per https://osquery.io/downloads (TLS-pinned key)
+   export OSQUERY_KEY=1484120AC4E9F8A1A577AEEE97A80C63C9D8B80B
+   sudo mkdir -p /etc/apt/keyrings
+   curl -fsSL https://pkg.osquery.io/deb/pubkey.gpg \
+     | sudo gpg --dearmor -o /etc/apt/keyrings/osquery.gpg
+   echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/osquery.gpg] https://pkg.osquery.io/deb deb main" \
+     | sudo tee /etc/apt/sources.list.d/osquery.list
+   sudo apt-get update && sudo apt-get install -y osquery
+   ```
+
+2. Install the extension binary and `extensions.load` as shown above. The
+   osquery package already creates `/var/osquery`, so the default
+   `--extensions_socket=/var/osquery/osquery.em` works unchanged.
+
+3. Point `osqueryd` at the extension via `/etc/osquery/osquery.flags`:
+
+   ```
+   --extensions_autoload=/etc/osquery/extensions.load
+   --extensions_timeout=10
+   --extensions_socket=/var/osquery/osquery.em
+   ```
+
+4. Enable the daemon (it runs as root, so it has the `CAP_NET_ADMIN` needed to
+   read the full ruleset):
+
+   ```sh
+   sudo systemctl enable --now osqueryd
+   journalctl -u osqueryd -f | grep -i 'Registering extension'
+   ```
+
+### Fedora Silverblue (and other rpm-ostree / immutable variants)
+
+The root filesystem is read-only, but `/usr/local` is a symlink to the writable,
+persistent `/var/usrlocal`, so the `install` commands above work as-is and
+survive upgrades. `nft` ships in the base image.
+
+`osqueryd` is not in the base image; layer it with `rpm-ostree` and reboot:
+
+```sh
+# layer the official osquery rpm (from osquery's yum repo)
+sudo rpm-ostree install \
+  https://pkg.osquery.io/rpm/osquery-5.13.1-1.linux.x86_64.rpm
+sudo systemctl reboot
+```
+
+> Check <https://osquery.io/downloads> for the current rpm version/URL. You can
+> also add the osquery yum repo and `rpm-ostree install osquery`, but pinning the
+> rpm URL avoids a repo definition on an immutable host.
+
+After reboot, install the extension binary and `extensions.load` (the generic
+steps above), then configure flags. The osquery rpm does **not** pre-create
+`/var/osquery`, so either create it or point the socket at a directory the unit
+manages. Creating it is simplest:
+
+```sh
+sudo install -d -o root -g root -m 0755 /var/osquery
+```
+
+`/etc/osquery/osquery.flags`:
+
+```
+--extensions_autoload=/etc/osquery/extensions.load
+--extensions_timeout=10
+--extensions_socket=/var/osquery/osquery.em
+```
+
+Enable and verify:
+
+```sh
+sudo systemctl enable --now osqueryd
+journalctl -u osqueryd -f | grep -i 'Registering extension'
+```
+
+> If you'd rather not layer packages, run osquery inside a `toolbox`/`distrobox`
+> container — but to read the **host** ruleset that container needs host
+> networking and `CAP_NET_ADMIN`, exactly like the [Docker](#docker) setup
+> below. Layering keeps it on the host where `osqueryd` runs as root.
+
+After the daemon is up on either distro, confirm the table is live:
+
+```sh
+sudo osqueryi --extensions_autoload=/etc/osquery/extensions.load --extensions_timeout=10
+```
+```sql
+osquery> SELECT kind, family, table_name, chain, handle FROM nftables;
+```
+
 ## Standalone / test mode
 
 You can run the extension by hand against a running `osqueryi` without
