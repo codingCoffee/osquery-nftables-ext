@@ -5,7 +5,7 @@ go 1.26
 // The only direct third-party dependency is the official osquery Go SDK; it is
 // added (with the correct version) by `go get github.com/osquery/osquery-go`.
 // Its transitive dependencies (Apache Thrift, etc.) are pulled in by `go mod
-// tidy`, which also populates go.sum. See `make deps`.
+// tidy`, which also populates go.sum. See `just deps`.
 
 require github.com/osquery/osquery-go v0.0.0-20260508130258-3e773449a5d4
 

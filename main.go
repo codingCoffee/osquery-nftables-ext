@@ -29,9 +29,10 @@ import (
 	"github.com/osquery/osquery-go/plugin/table"
 )
 
-// version is reported to osquery during extension registration. Override at
-// build time with -ldflags "-X main.version=<v>".
-var version = "0.1.0"
+// version is reported to osquery during extension registration. Release builds
+// stamp the real value via -ldflags "-X main.version=<v>" (see GoReleaser /
+// GoReleaser / flake.nix); "dev" marks an unstamped local build.
+var version = "dev"
 
 func main() {
 	// osqueryd passes these flags to autoloaded extensions. We must accept all

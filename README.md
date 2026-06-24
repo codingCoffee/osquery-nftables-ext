@@ -55,19 +55,21 @@ don't expose can be recovered by re-parsing it (e.g. with osquery's
 
 ## Build
 
-Requires Go 1.21+ and (the first time, with network access) the osquery Go SDK.
+Builds run through [`just`](https://github.com/casey/just) and the GoReleaser
+Docker image, so Docker is the only host requirement (Go runs inside the
+container).
 
 ```sh
 # one-time: resolve modules and populate go.sum
-make deps          # == go mod tidy
+just deps          # == go mod tidy
 
-# produce the static binary ./nftables.ext
-make build
+# produce the static binary under ./dist
+just build
 ```
 
-`make build` sets `CGO_ENABLED=0`, producing a single fully static binary named
-`nftables.ext` with no runtime dependencies. Run `make test` for the unit tests
-and `make clean` to remove the artifact.
+`just build` sets `CGO_ENABLED=0`, producing a single fully static binary named
+`nftables.ext` with no runtime dependencies. Run `just test` for the unit tests
+and `just clean` to remove the artifacts. See `just --list` for all recipes.
 
 ## Install
 
@@ -181,7 +183,7 @@ Unit tests feed a committed fixture (`testdata/ruleset.json`, a captured
 correct. They **never** shell out to a real `nft`.
 
 ```sh
-make test
+just test
 ```
 
 ## Install on NixOS (declarative)

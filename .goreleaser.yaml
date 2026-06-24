@@ -1,0 +1,65 @@
+# GoReleaser config for osquery-nftables-ext
+# Docs: https://goreleaser.com
+#
+# The binary MUST be named with the .ext suffix (osquery convention for
+# autoloaded extensions). nftables is a Linux-only kernel subsystem, so we only
+# build for linux/{amd64,arm64}.
+version: 2
+
+project_name: osquery-nftables-ext
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: nftables-ext
+    binary: nftables.ext
+    main: .
+    env:
+      # No libc linkage => a single static binary.
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      # -s -w strips symbols/DWARF; -X stamps the version reported to osquery.
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    # e.g. osquery-nftables-ext_0.2.0_linux_amd64.tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: codingCoffee
+    name: osquery-nftables-ext
+  draft: false
+  prerelease: auto

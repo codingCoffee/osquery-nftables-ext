@@ -6,7 +6,10 @@
   outputs =
     { self, nixpkgs }:
     let
-      version = "0.1.0";
+      # Nix has no access to git tags, so we stamp the commit instead:
+      # "dev-g<shortrev>" (shortRev appends "-dirty" for an uncommitted tree).
+      # Tagged GitHub Release artifacts get their real semver from GoReleaser.
+      version = "dev-g${self.shortRev or self.dirtyShortRev or "unknown"}";
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -27,7 +30,7 @@
           # `nix build .#osquery-nftables-ext`, and paste the reported "got:" hash.
           vendorHash = "sha256-8LbImEhxNXpsFkxVczKGgLHw/m5hsdCZAQSzdBSLEzI=";
 
-          # Fully static, no cgo — matches `make build`.
+          # Fully static, no cgo — matches the GoReleaser build.
           env.CGO_ENABLED = "0";
           ldflags = [
             "-s"

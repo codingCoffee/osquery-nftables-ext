@@ -1,3 +1,8 @@
+# direnv
+.envrc
+
+dist/
+
 # build artifact
 /nftables.ext
 
