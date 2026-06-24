@@ -63,6 +63,7 @@ release BUMP:
     #!/usr/bin/env bash
     set -euo pipefail
     test -n "${GITHUB_TOKEN:-}" || { echo "GITHUB_TOKEN is not set" >&2; exit 1; }
+    test -z "$(git status --porcelain)" || { echo "working tree is dirty; commit, stash, or ignore changes first (GoReleaser refuses a dirty tree)" >&2; exit 1; }
     case "{{BUMP}}" in
       patch|minor|major) ;;
       *) echo "usage: just release [patch|minor|major]" >&2; exit 1 ;;
@@ -80,3 +81,9 @@ release BUMP:
     git tag -a "${next}" -m "Release ${next}"
     git push origin "${next}"
     just _gr release --clean
+
+# Publish a GitHub Release for the latest existing tag, without bumping.
+# Use to retry after a `just release` whose tag was pushed but publish failed.
+publish:
+    @test -n "${GITHUB_TOKEN:-}" || { echo "GITHUB_TOKEN is not set" >&2; exit 1; }
+    @just _gr release --clean
